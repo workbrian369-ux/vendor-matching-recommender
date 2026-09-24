@@ -1,0 +1,18 @@
+data/
+models/
+venv/
+__pycache__/
+*.npy
+*.bin
+*.parquet
+*.json
+data/
+models/
+venv/
+__pycache__/ >> .gitignore
+
+echo __pycache__/
+*.json
+*.npy
+*.bin
+*.parquet
