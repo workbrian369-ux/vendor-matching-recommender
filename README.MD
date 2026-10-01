@@ -1,29 +1,51 @@
-# Vendor Matching Recommendation System
+# Descriptive Vendor Matching System
 
-Embedding-based vendor recommendation engine as a practical implementation of a real world project (wedding platform vendor matching).
+A transparent, multi-component vendor ranking system under a strict logical workflow.
+This project implements a **descriptive matching claim**: given a user's stated preferences, it returns a ranked list of vendors that best match those preferences under explicit, pre-declared definitions. It does **not** claim to predict user preference or prescribe which vendor should be chosen.
 
-## Problem Statement
+---
 
-A wedding platform needs an intelligent way to recommend relevant vendors (Venues, florist, photographers, etc.) based on a couples preferences around **style**, **budget**, and **location**.
+## Logical Flow
 
-This system solves the problem using **semantic embeddings** + **re-ranking**.
+### Descriptive matching claim
 
-## Solution
+> Given a text description of desired style, an optional preference price level (1-4), and an optional city filter, return a ranked list of vendors. Each vendor is accompanied by an explicit match score broken into three components (Semantic, budget, quality) and a short explanantion.
 
-- Generate rich text representation of businesses (name + categories + reviews)
-- Create emebeddings using `sentence-transformers` (`all-MiniLM-l6-v2`)
-- Index embeddings with FAISS for fast similarity search
-- Re-rank results using semantic score + star rating + optional price preference
-- Serve recommendations through a FASTAPI endpoint
+the ranking determines surface order. The final choice remains with the user.
 
-## Features
+---
 
-- Semantic search over thousands of businesses
-- Optional city filter
-- Optional preferred price range (1-4)
-- Star-rating boost in ranking
-- Low-latency FAISS retrival
-- Interactive API docs at `/docs`
+## Scoring Componnents (Locked Definitions)
+
+| Component    | Weight  | Definition  |
+| -------------|---------| ------------|
+| **Semantics**| 0.50    | Cosine similarity between the query embedding and vendors text (name + categories + review) |
+| **Budget**   | 0.30    | 1.0 if exact price match, 0.6 if adjacent. Vendors with missing price are excluded when a preferred price is supplied . when no preferred price is given, the component is neutral (0.5). |
+| **Quality**  | 0.20    | Min-max normalized star rating (1-5 -> 0-1) |
+
+**Final Score** = weighted sum of the three components.
+
+Weights were fixed before evaluation.
+
+---
+
+## Key Design Rules
+
+- **City** is a hard filter (include/exclude), not a second componet.
+- When a preferred price is provided, vendors with missing price information are excluded (option B).
+- All definitions and weights are declared in advance remain fixed.
+- Every result returns the component scores so the ranking is auditable.
+
+---
+
+## Data Notes & Limitations
+
+- Built on a filtered subset of the Yelp Open Dataset (8,000 businesses across 5 cities).
+- Price Coverage: 83.3%. the remaining 16.7% are excluded when a preferred price is supplied.
+- Very few vendors have price level 4. Rankings for "Luxury" queries are therefore constrained by data availability.
+- This is a descriptive system. It does not claim to predict booking behaviour or user preference.
+
+---
 
 ## Tech Stack
 
@@ -37,11 +59,17 @@ This system solves the problem using **semantic embeddings** + **re-ranking**.
 
 Vendor-matching-recommender/
 
+- data/
+    |- raw/  # Place the original Yelp JSON files here (not tracked)
+    |- processed/ # Cleaned data  (not tracked)
+- models/  # Embedings + FAISS index (not tracked)
 - notebooks/
-    -01_data_exploration.py
-    -02_prepare_embeddings_data.py
-    -03_generate_embeddings.py
-    -04_recommend.py
+    |- 01_data_exploration.py
+    |- 02_prepare_embeddings_data.py
+    |- 03_generate_embeddings.py
+    |- 04_recommend.py
+    |- 05_data_audit.py
+    |- 06_descriptive_ranking.py
 - requirements.txt
 - README.MD
 
@@ -69,36 +97,36 @@ pip instal -r requirements.txt
 
 1. Download the Yelp Open Dataset
 2. Place the business and review JSON files in data/raw/
-3. Run the notebook in order(01-04)
+3. Run the notebook in order(01-06)
 4. Start the API:
 
+## Run the ranking system only (after data & models exist)
+
 ```bash
-python notebooks/04_recommend.py
-# then open your browser:
-# http://127.0.0.1:8000/docs
-# you can test live queries directly from the interactive Swagger UI.
+python notebooks/06_desriptive_ranking.py
 ```
 
 ## Example Query
 
-- Q1 - romantic outdoor wedding venue - returns venues & related services
-- Q2 - affordable italian restaurant - returns italian restaurants
-- Q3 - modern photography studio - returns photographers/studios
-- Q4 - Luxury florist for wedding - Returns high-end florist
+```text
+Query: 'affordable italian restaurant' | City: Philadelphia | Price: 2 
+1: Claudio's Speciality Foods (Philadelphia) - Final: 0.785
+    Semantic: 0.62 | Budget: 1.00 | Quality: 0.88
+...
+```
 
-you can also filter by:
+## WorkFlow Discipline
 
-- city (e.g Philadelphia, Nashville)
-- preferred_price(1=cheap, 4=expensive)
+This project was developed under an explicit analytical workflow:
 
-## Parameters
+1. **Problem Formulation** - Logical form identified and locked (Descriptive Matching)
+2. **Data Audit** - Coverage and limitations established before modelling
+3. **Implementation** - Code written to express exacty the logical claim
+4. **Verification** - Output checked against the original proof
 
-- Query(required) - text description of what the user wants
-- top_k(optional) - number of results (default 10)
-- city(optional) - filter by city
-- preferred_price(optional) - preferred price range(1-4)
+The goal was not only to produce rankings, but to produce those rankings whose meaning is clear and whose limitations are stated.
 
-## Future Improvements
+## Future Extensions (Out of Scope)
 
 - Multi-vector embeddings(separate style / budget / location vectors)
 - Learning-to-rank model on top of retrival
